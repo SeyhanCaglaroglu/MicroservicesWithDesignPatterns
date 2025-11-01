@@ -18,23 +18,24 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddMassTransit(x =>
 {
+
     x.AddConsumer<OrderCreatedEventConsumer>();
-    x.AddConsumer<PaymentFailedEventConsumer>();
+    x.AddConsumer<StockRollbackMessageConsumer>();
 
     x.UsingRabbitMq((context, cfg) =>
     {
         cfg.Host(builder.Configuration.GetConnectionString("RabbitMQ"));
-
 
         cfg.ReceiveEndpoint(RabbitMQSettings.StockOrderCreatedQueueName, e =>
         {
             e.ConfigureConsumer<OrderCreatedEventConsumer>(context);
         });
 
-        cfg.ReceiveEndpoint(RabbitMQSettings.StockPaymentFailedEventQueueName, e =>
+        cfg.ReceiveEndpoint(RabbitMQSettings.StockRollbackRequestMessageQueueName, e =>
         {
-            e.ConfigureConsumer<PaymentFailedEventConsumer>(context);
+            e.ConfigureConsumer<StockRollbackMessageConsumer>(context);
         });
+
     });
 });
 

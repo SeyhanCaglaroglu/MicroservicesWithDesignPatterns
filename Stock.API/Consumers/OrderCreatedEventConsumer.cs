@@ -1,66 +1,56 @@
 ﻿using MassTransit;
-using Shared.Bus;
+using Microsoft.EntityFrameworkCore;
+using Shared.Bus.Events;
+using Shared.Bus.Interfaces;
 using Stock.API.Models;
 
 namespace Stock.API.Consumers
 {
-    public class OrderCreatedEventConsumer(AppDbContext appDbContext, ILogger<OrderCreatedEventConsumer> logger, ISendEndpointProvider sendEndpointProvider, IPublishEndpoint publishEndpoint) : IConsumer<OrderCreatedEvent>
+    public class OrderCreatedEventConsumer(AppDbContext appDbContext, ILogger<OrderCreatedEventConsumer> logger, IPublishEndpoint publishEndpoint) : IConsumer<IOrderCreatedEvent>
     {
-        public async Task Consume(ConsumeContext<OrderCreatedEvent> context)
+        public async Task Consume(ConsumeContext<IOrderCreatedEvent> context)
         {
-            //Stock da ilgili urun varmi ve sayisi siparisdekinden fazlami
-
             var stockResult = new List<bool>();
 
             foreach (var item in context.Message.OrderItems)
             {
-                stockResult.Add(appDbContext.Stocks.Any(s => s.ProductId == item.ProductId && s.Count >= item.Count));
+                stockResult.Add(
+                    await appDbContext.Stocks.AnyAsync(x => x.ProductId == item.ProductId && x.Count > item.Count));
             }
 
-
-            //Eger fazlaysa stoktan dus ve StockReservedEvent gonder
             if (stockResult.All(x => x.Equals(true)))
             {
                 foreach (var item in context.Message.OrderItems)
                 {
-                    var stock = appDbContext.Stocks.FirstOrDefault(s => s.ProductId == item.ProductId);
+                    var stock = await appDbContext.Stocks.FirstOrDefaultAsync(x => x.ProductId == item.ProductId);
+
                     if (stock != null)
                     {
                         stock.Count -= item.Count;
-
                     }
 
                     await appDbContext.SaveChangesAsync();
                 }
 
-                logger.LogInformation($"Stock was reserved for Buyer Id :{context.Message.BuyerId}");
+                logger.LogInformation($"Stock was reserved for CorrelationId Id :{context.Message.CorrelationId}");
 
 
-                var sendEndpoint = await sendEndpointProvider.GetSendEndpoint(new Uri($"queue:{RabbitMQSettings.StockReservedEventQueueName}"));
-
-                StockReservedEvent stockReservedEvent = new StockReservedEvent
+                StockReservedEvent stockReservedEvent = new(context.Message.CorrelationId)
                 {
-                    OrderId = context.Message.OrderId,
-                    BuyerId = context.Message.BuyerId,
-                    PaymentMessage = context.Message.Payment,
                     OrderItems = context.Message.OrderItems
                 };
 
-                await sendEndpoint.Send(stockReservedEvent);
+                await publishEndpoint.Publish(stockReservedEvent);
             }
-            //Degilse StockNotReservedEvent gonder
+
             else
             {
-                
-                StockNotReservedEvent stockNotReservedEvent = new StockNotReservedEvent
+                await publishEndpoint.Publish(new StockNotReservedEvent(context.Message.CorrelationId)
                 {
-                    OrderId = context.Message.OrderId,
-                    Message = "Stock not reserved"
-                };
+                    Reason = "Not enough stock"
+                });
 
-                logger.LogInformation($"Not enough stock for Buyer Id :{context.Message.BuyerId}");
-
-                await publishEndpoint.Publish(stockNotReservedEvent);
+                logger.LogInformation($"Stock was not reserved for CorrelationId Id :{context.Message.CorrelationId}");
             }
         }
     }

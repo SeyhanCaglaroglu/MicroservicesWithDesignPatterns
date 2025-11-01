@@ -4,11 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Shared.Bus
+namespace Shared.Bus.Interfaces
 {
-    public class PaymentCompletedEvent
+    public interface IOrderRequestFailedEvent
     {
         public int OrderId { get; set; }
-        public string BuyerId { get; set; } = null!;
+        public string Reason { get; set; }
     }
 }

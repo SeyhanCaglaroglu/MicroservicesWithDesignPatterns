@@ -4,12 +4,14 @@ using Microsoft.AspNetCore.Mvc;
 using Order.API.Dtos;
 using Order.API.Models;
 using Shared.Bus;
+using Shared.Bus.Events;
+using Shared.Bus.Interfaces;
 
 namespace Order.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class OrdersController(AppDbContext appDbContext, IPublishEndpoint publishEndpoint) : ControllerBase
+    public class OrdersController(AppDbContext appDbContext, ISendEndpointProvider sendEndpointProvider) : ControllerBase
     {
         [HttpPost]
         public async Task<IActionResult> CreateOrder([FromBody] OrderCreateDto orderCreateDto)
@@ -38,7 +40,7 @@ namespace Order.API.Controllers
             await appDbContext.SaveChangesAsync();
 
 
-            var orderCreatedEvent = new OrderCreatedEvent
+            var orderCreatedRequestEvent = new OrderCreatedRequestEvent
             {
                 OrderId = order.Id,
                 BuyerId = order.BuyerId,
@@ -58,7 +60,11 @@ namespace Order.API.Controllers
             };
 
 
-            await publishEndpoint.Publish(orderCreatedEvent);
+            var sendEndpoint = await sendEndpointProvider.GetSendEndpoint(new Uri($"queue:{RabbitMQSettings.OrderSaga}"));
+
+            await sendEndpoint.Send<IOrderCreatedRequestEvent>(orderCreatedRequestEvent);
+
+            //await publishEndpoint.Publish(orderCreatedEvent);
 
             return Ok();
         }

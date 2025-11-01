@@ -1,0 +1,21 @@
+﻿using Shared.Bus.Interfaces;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Shared.Bus.Events
+{
+    public class OrderCreatedEvent : IOrderCreatedEvent
+    {
+        public List<OrderItemMessage> OrderItems { get; set; } = null!;
+
+        public Guid CorrelationId { get; set; }
+
+        public OrderCreatedEvent(Guid correlationId)
+        {
+            CorrelationId = correlationId;
+        }
+    }
+}
