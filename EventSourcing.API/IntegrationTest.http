@@ -1,0 +1,61 @@
+### Integration Test for Kafka Event Sourcing
+### This file contains HTTP requests to test the end-to-end event flow
+
+@baseUrl = http://localhost:5196
+@productId = 493c0e1d-ba57-4981-b0fe-a614c03f552e
+
+### 1. Create a Product (should publish ProductCreatedEvent to Kafka)
+POST {{baseUrl}}/api/products/CreateProduct
+Content-Type: application/json
+
+{
+  "createProductDto": {
+    "userId": 1,
+    "name": "Test Product",
+    "price": 99.99,
+    "stock": 100
+  }
+}
+
+### 2. Change Product Name (should publish ProductNameChangedEvent to Kafka)
+# Replace @productId with actual product ID from database after step 1
+PUT {{baseUrl}}/api/products/ChangeName
+Content-Type: application/json
+
+{
+  "changeProductNameDto": {
+    "id": "{{productId}}",
+    "name": "Updated Product Name"
+  }
+}
+
+### 3. Change Product Price (should publish ProductPriceChangedEvent to Kafka)
+# Replace @productId with actual product ID from database after step 1
+PUT {{baseUrl}}/api/products/ChangePrice
+Content-Type: application/json
+
+{
+  "changeProductPriceDto": {
+    "id": "{{productId}}",
+    "price": 149.99
+  }
+}
+
+### 4. Delete Product (should publish ProductDeletedEvent to Kafka)
+# Replace @productId with actual product ID from database after step 1
+DELETE {{baseUrl}}/api/products/DeleteProduct/{{productId}}
+
+###
+### Expected Flow:
+### 1. Command Handler receives command
+### 2. ProductStream publishes event to Kafka topic
+### 3. EventConsumerService consumes event from Kafka
+### 4. EventConsumerService updates SQL Server database
+### 5. Query returns updated data
+###
+### To verify:
+### - Check application logs for "Message published to Kafka"
+### - Check application logs for "The Message processing..."
+### - Check Kafka UI at http://localhost:8080 to see messages in product-events topic
+### - Verify database changes using SQL Server Management Studio
+###
